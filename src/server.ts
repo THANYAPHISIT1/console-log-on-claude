@@ -24,16 +24,22 @@ export type ServerHandle = {
 
 const RING_CAP = 200;
 
-const corsHeaders: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+function corsFor(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin');
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Origin': origin ?? '*',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Vary': 'Origin',
+  };
+  if (origin) headers['Access-Control-Allow-Credentials'] = 'true';
+  return headers;
+}
 
-function json(body: unknown, init: ResponseInit = {}): Response {
+function json(req: Request, body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders, ...(init.headers ?? {}) },
+    headers: { 'Content-Type': 'application/json', ...corsFor(req), ...(init.headers ?? {}) },
   });
 }
 
@@ -85,10 +91,10 @@ export async function startServer(opts: ServerOptions = {}): Promise<ServerHandl
     try {
       body = await req.json();
     } catch {
-      return json({ error: 'invalid json' }, { status: 400 });
+      return json(req, { error: 'invalid json' }, { status: 400 });
     }
     const events = (body as { events?: unknown }).events;
-    if (!Array.isArray(events)) return json({ error: 'events[] required' }, { status: 400 });
+    if (!Array.isArray(events)) return json(req, { error: 'events[] required' }, { status: 400 });
 
     let accepted = 0;
     for (const raw of events) {
@@ -104,7 +110,7 @@ export async function startServer(opts: ServerOptions = {}): Promise<ServerHandl
       logsWriter.flush();
       summaryWriter.schedule();
     }
-    return json({ accepted });
+    return json(req, { accepted });
   }
 
   function filterSummary(params: URLSearchParams) {
@@ -176,11 +182,11 @@ export async function startServer(opts: ServerOptions = {}): Promise<ServerHandl
       const { pathname } = url;
 
       if (req.method === 'OPTIONS') {
-        return new Response(null, { status: 204, headers: corsHeaders });
+        return new Response(null, { status: 204, headers: corsFor(req) });
       }
 
       if (req.method === 'GET' && pathname === '/healthz') {
-        return json({ ok: true, port, host, startedAt, uptimeMs: Date.now() - startedAt });
+        return json(req, { ok: true, port, host, startedAt, uptimeMs: Date.now() - startedAt });
       }
 
       if (req.method === 'GET' && pathname === '/capture.js') {
@@ -188,14 +194,14 @@ export async function startServer(opts: ServerOptions = {}): Promise<ServerHandl
         if (!(await file.exists())) {
           return new Response('// capture.js not built — run `bun run build`', {
             status: 404,
-            headers: { 'Content-Type': 'application/javascript', ...corsHeaders },
+            headers: { 'Content-Type': 'application/javascript', ...corsFor(req) },
           });
         }
         return new Response(file, {
           headers: {
             'Content-Type': 'application/javascript; charset=utf-8',
             'Cache-Control': 'no-cache',
-            ...corsHeaders,
+            ...corsFor(req),
           },
         });
       }
@@ -203,19 +209,19 @@ export async function startServer(opts: ServerOptions = {}): Promise<ServerHandl
       if (req.method === 'POST' && pathname === '/ingest') return handleIngest(req);
 
       if (req.method === 'GET' && pathname === '/summary') {
-        return json(filterSummary(url.searchParams));
+        return json(req, filterSummary(url.searchParams));
       }
 
       if (req.method === 'GET' && pathname === '/logs') {
-        return json({ events: filterLogs(url.searchParams) });
+        return json(req, { events: filterLogs(url.searchParams) });
       }
 
       if (req.method === 'POST' && pathname === '/clear') {
         await clearAll();
-        return json({ ok: true, cleared: true });
+        return json(req, { ok: true, cleared: true });
       }
 
-      return json({ error: 'not found' }, { status: 404 });
+      return json(req, { error: 'not found' }, { status: 404 });
     },
   });
 
