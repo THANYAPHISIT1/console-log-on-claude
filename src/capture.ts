@@ -117,7 +117,7 @@ import { safeSerialize } from './serialize.ts';
 
   const origFetch = window.fetch?.bind(window);
   if (origFetch) {
-    window.fetch = async function (
+    window.fetch = (async function (
       input: RequestInfo | URL,
       init?: RequestInit,
     ): Promise<Response> {
@@ -150,7 +150,7 @@ import { safeSerialize } from './serialize.ts';
         };
         emit(ev);
       }
-    };
+    }) as typeof fetch;
   }
 
   const XHR = window.XMLHttpRequest?.prototype;
