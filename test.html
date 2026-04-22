@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>cloc bridge smoke test</title>
+  <script src="http://127.0.0.1:3737/capture.js" data-session="smoke"></script>
+</head>
+<body style="font-family: system-ui; padding: 24px">
+  <h1>console-log-on-claude — smoke test</h1>
+  <p>เปิด DevTools console แล้วดูที่ repo:</p>
+  <pre>cat summary.json
+tail -f logs.jsonl</pre>
+  <div>
+    <button id="b-console">Fire 50 errors + 1 warn</button>
+    <button id="b-fetch">Fire 10 fetch (users/1..10)</button>
+    <button id="b-xhr">Fire 3 XHR</button>
+    <button id="b-mix">Mixed burst</button>
+    <button id="b-clear">Clear (server)</button>
+  </div>
+
+  <!-- resources should NOT appear in logs -->
+  <img alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=" />
+  <link rel="stylesheet" href="data:text/css,body{}" />
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    $('b-console').onclick = () => {
+      for (let i = 0; i < 50; i++) console.error('TypeError: x of', i, 'undefined');
+      console.warn('deprecated api used');
+    };
+    $('b-fetch').onclick = () => {
+      for (let i = 1; i <= 10; i++) fetch('/api/users/' + i).catch(() => {});
+    };
+    $('b-xhr').onclick = () => {
+      for (let i = 1; i <= 3; i++) {
+        const x = new XMLHttpRequest();
+        x.open('GET', '/api/things/' + i);
+        x.send();
+      }
+    };
+    $('b-mix').onclick = () => {
+      console.log('hello', { user: 42 });
+      console.info('session', 'abc-123');
+      fetch('/api/health').catch(() => {});
+      const x = new XMLHttpRequest();
+      x.open('POST', '/api/events');
+      x.send(JSON.stringify({ e: 1 }));
+    };
+    $('b-clear').onclick = async () => {
+      await fetch('http://127.0.0.1:3737/clear', { method: 'POST' });
+      alert('cleared');
+    };
+  </script>
+</body>
+</html>
