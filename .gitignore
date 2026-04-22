@@ -1,0 +1,9 @@
+node_modules
+public/capture.js
+logs.jsonl
+summary.json
+.DS_Store
+*.tsbuildinfo
+bun.lock
+bun.lockb
+dist/
