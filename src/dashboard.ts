@@ -32,7 +32,8 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
   let paused = false;
   let levelFilter: LevelFilter = 'all';
   let grepRe: RegExp | null = null;
-  let inputMode: null | 'grep' = null;
+  let pathFilter: string | null = null;
+  let inputMode: null | 'grep' | 'path' = null;
   let inputBuffer = '';
   let exiting = false;
 
@@ -74,8 +75,9 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
 
     const uptime = fmtUptime(Date.now() - opts.startedAt);
     const pauseTag = paused ? `  ${YELLOW}[paused]${RESET}` : '';
+    const pathTag = pathFilter ? `  ${BLUE}[path: ${pathFilter}]${RESET}` : '';
     lines.push(
-      `${BOLD}clc${RESET}  ${DIM}·${RESET}  http://${opts.host}:${opts.port}  ${DIM}·${RESET}  uptime ${uptime}${pauseTag}`,
+      `${BOLD}clc${RESET}  ${DIM}·${RESET}  http://${opts.host}:${opts.port}  ${DIM}·${RESET}  uptime ${uptime}${pauseTag}${pathTag}`,
     );
     lines.push(hr);
 
@@ -91,7 +93,9 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
     lines.push(hr);
 
     lines.push(`${BOLD}TOP CONSOLE${RESET}  ${DIM}[level: ${levelFilter}]${RESET}`);
-    const cons = filterConsoleGroups(snap.console, levelFilter).slice(0, 5);
+    let consBase = filterConsoleGroups(snap.console, levelFilter);
+    if (pathFilter) consBase = consBase.filter((g) => g.urls.some((u) => u.includes(pathFilter!)));
+    const cons = consBase.slice(0, 5);
     if (cons.length === 0) lines.push(`${GREY}  (none)${RESET}`);
     for (const g of cons) {
       const col = colorForLevel(g.level);
@@ -102,7 +106,9 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
     lines.push(hr);
 
     lines.push(`${BOLD}TOP NETWORK${RESET}`);
-    const net = snap.network.slice(0, 5);
+    let netBase = snap.network;
+    if (pathFilter) netBase = netBase.filter((g) => g.urlPattern.includes(pathFilter!));
+    const net = netBase.slice(0, 5);
     if (net.length === 0) lines.push(`${GREY}  (none)${RESET}`);
     for (const g of net) {
       const statusCol = g.status >= 500 ? RED : g.status >= 400 ? YELLOW : GREEN;
@@ -120,6 +126,7 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
         (e) => e.kind !== 'console' || levelMatches(e.level, levelFilter),
       );
     }
+    if (pathFilter) liveEvents = liveEvents.filter((e) => e.url.includes(pathFilter!));
     if (grepRe) liveEvents = liveEvents.filter((e) => grepRe!.test(JSON.stringify(e)));
     const tailSpace = Math.max(3, rows - lines.length - 3);
     const tailSlice = liveEvents.slice(-tailSpace);
@@ -129,7 +136,9 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
     const help =
       inputMode === 'grep'
         ? `${BOLD}/${inputBuffer}${RESET}${DIM}  Enter=confirm · Esc=cancel${RESET}`
-        : `${DIM}[q]uit  [c]lear  [p]${paused ? 'resume' : 'ause'}  [f]level(${levelFilter})  [/]${grepRe ? 'clear-grep' : 'grep'}${RESET}`;
+        : inputMode === 'path'
+          ? `${BOLD}path: ${inputBuffer}${RESET}${DIM}  (e.g. localhost:3000)  Enter=confirm · Esc=cancel${RESET}`
+          : `${DIM}[q]uit  [c]lear  [p]${paused ? 'resume' : 'ause'}  [f]level(${levelFilter})  [/]${grepRe ? 'clear-grep' : 'grep'}  [a]${pathFilter ? 'clear-path' : 'dd-path'}${RESET}`;
 
     process.stdout.write(CLEAR + lines.join('\n') + '\n' + help);
   };
@@ -137,12 +146,16 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
   const onKey = async (data: Buffer | string) => {
     const s = typeof data === 'string' ? data : data.toString('utf8');
 
-    if (inputMode === 'grep') {
+    if (inputMode === 'grep' || inputMode === 'path') {
       if (s === '\r' || s === '\n') {
-        try {
-          grepRe = inputBuffer ? new RegExp(inputBuffer) : null;
-        } catch {
-          grepRe = null;
+        if (inputMode === 'grep') {
+          try {
+            grepRe = inputBuffer ? new RegExp(inputBuffer) : null;
+          } catch {
+            grepRe = null;
+          }
+        } else {
+          pathFilter = inputBuffer.trim() || null;
         }
         inputMode = null;
         inputBuffer = '';
@@ -193,6 +206,17 @@ export async function runDashboard(opts: DashboardOptions): Promise<void> {
         return;
       }
       inputMode = 'grep';
+      inputBuffer = '';
+      render();
+      return;
+    }
+    if (s === 'a') {
+      if (pathFilter) {
+        pathFilter = null;
+        render();
+        return;
+      }
+      inputMode = 'path';
       inputBuffer = '';
       render();
     }
