@@ -1,12 +1,11 @@
 # console-log-on-claude
 
-> Read this in other languages: [ภาษาไทย](./README.th.md)
+> อ่านในภาษาอื่น: [English](./README.md)
 
-Local bridge that lets Claude Code "see" the browser's console + network (fetch/XHR)
-without Claude having to grep/tail raw logs line by line — the bridge already
-**dedupes + groups + counts** for you.
+Local bridge ให้ Claude Code "มองเห็น" console + network (fetch/XHR) ของ browser
+โดยไม่ต้องให้ Claude grep/tail log ดิบทีละบรรทัด — bridge **dedup + group + นับ count** ให้แล้ว
 
-Used via the `clc` CLI (standalone binary, no Bun/Node required on the target machine).
+ใช้งานผ่าน CLI `clc` (standalone binary, ไม่ต้องมี Bun/Node ในเครื่องปลายทาง)
 
 ```
 Browser tab ──POST──▶  clc :3737  ◀──HTTP──  Claude (clc summary / clc logs)
@@ -22,46 +21,46 @@ bun install
 bun run build         # build public/capture.js
 bun run build:bin     # → dist/clc (native, ~58 MB)
 
-# cross-compile both macOS arm64 + x64:
+# cross-compile ทั้ง macOS arm64 + x64:
 bun run build:bin:all # → dist/clc-darwin-arm64, dist/clc-darwin-x64
 ```
 
-You can also run from source without compiling: `bun run src/cli.ts start`
+ถ้าไม่ compile ก็รันจาก source ได้เลย: `bun run src/cli.ts start`
 
-## Install (call `clc` from any directory)
+## Install (เรียก `clc` ได้จากทุก directory)
 
 ```bash
 bun run install:bin   # build:bin + symlink → ~/.local/bin/clc
 ```
 
-If `~/.local/bin` is not yet in your PATH, the script will prompt you to add this to `~/.zshrc`:
+ถ้า `~/.local/bin` ยังไม่อยู่ใน PATH script จะเตือนให้ใส่บรรทัดนี้ใน `~/.zshrc`:
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-To install elsewhere: `CLC_INSTALL_DIR=/usr/local/bin bun run install:bin`
-(may require `sudo` depending on the target directory's permissions).
+ต้องการติดตั้งที่อื่น: `CLC_INSTALL_DIR=/usr/local/bin bun run install:bin`
+(อาจต้องใช้ `sudo` ขึ้นกับสิทธิ์ของ directory นั้น)
 
 ## Quick start
 
 ```bash
-clc start                  # start bridge + dashboard (foreground)
+clc start                  # เริ่ม bridge + dashboard (foreground)
 clc start --no-dashboard   # headless
 ```
 
-If not installed, you can call `./dist/clc start` directly.
+ถ้ายังไม่ได้ install สามารถเรียก `./dist/clc start` ตรงๆ ได้
 
-Include in the HTML of the app you want to debug (or use `clc snippet` to generate it):
+ใส่ใน HTML ของแอปที่จะ debug (หรือใช้ `clc snippet` สร้างให้):
 
 ```html
 <script src="http://127.0.0.1:3737/capture.js" data-session="my-app"></script>
 ```
 
-Options on `<script>` (dataset or query string):
+Options บน `<script>` (dataset หรือ query string):
 
-- `data-session="name"` — separate session
-- `data-levels="warn,error"` — filter console levels (default: all levels)
+- `data-session="name"` — แยก session
+- `data-levels="warn,error"` — filter console levels (default ทุก level)
 - `data-endpoint="http://..."` — override ingest URL
 
 ## CLI
@@ -77,14 +76,14 @@ clc snippet   [--session my-app] [--levels warn,error] [--port 3737] [--host 127
 clc help
 ```
 
-`start` runs server + dashboard (foreground) — all other commands are stateless HTTP calls
-to the running server.
+`start` รัน server + dashboard (foreground) — คำสั่งอื่นทั้งหมดเป็น stateless HTTP call
+ไปยัง running server
 
 **Exit codes:** `0` ok · `1` error · `2` server unreachable
 
 ## Dashboard
 
-Runs in the terminal when you `clc start` — refreshes every 500ms.
+รันอยู่บน terminal ตอน `clc start` — อัปเดตทุก 500ms
 
 ```
 clc  ·  http://127.0.0.1:3737  ·  uptime 00:05:23
@@ -112,13 +111,13 @@ LIVE TAIL
 - `c` — clear (store + logs.jsonl + summary.json)
 - `p` — pause re-render
 - `f` — cycle level filter (all → err → err+warn → all)
-- `/` — grep prompt (Enter = confirm, Esc = cancel, `/` again = clear grep)
+- `/` — grep prompt (Enter=confirm, Esc=cancel, `/` ซ้ำ=clear grep)
 
 ## How Claude should consume this
 
-Claude invokes via `clc` subcommands — all output is JSON on stdout.
+Claude เรียกผ่าน `clc` subcommand — output เป็น JSON ที่ stdout ทั้งหมด
 
-**Always start from `clc summary`** (already grouped/counted):
+**เริ่มจาก `clc summary` เสมอ** (grouped/counted แล้ว):
 
 ```bash
 clc summary --limit 20
@@ -126,14 +125,14 @@ clc summary --kind console --level error
 clc summary --kind network --status-min 400 --url-pattern '/api/'
 ```
 
-**Deep-dive** when you need to trace timing/sequence:
+**Deep-dive** เมื่อต้อง trace timing/sequence:
 
 ```bash
 clc logs --grep "TypeError" --tail 20
 clc logs --kind network --level error --tail 50
 ```
 
-**Reset before a new session:**
+**Reset ก่อนเริ่ม session ใหม่:**
 
 ```bash
 clc clear
@@ -141,37 +140,37 @@ clc clear
 
 ## HTTP API
 
-If you want to integrate directly without going through the CLI:
+ถ้าอยาก integrate ตรงๆ โดยไม่ผ่าน CLI:
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET  | `/capture.js` | serves the browser snippet |
-| POST | `/ingest` | receives `{events: Event[]}` from capture.js |
+| GET  | `/capture.js` | เสิร์ฟ browser snippet |
+| POST | `/ingest` | รับ `{events: Event[]}` จาก capture.js |
 | GET  | `/summary` | grouped snapshot (same shape as summary.json) |
 | GET  | `/summary?kind=console&level=error&limit=20` | filter |
 | GET  | `/summary?kind=network&statusMin=400&urlPattern=/api/` | filter |
 | GET  | `/logs?tail=50&level=error&grep=...` | ring buffer (last 200 events) |
-| POST | `/clear` | reset everything |
+| POST | `/clear` | reset ทั้งหมด |
 | GET  | `/healthz` | liveness + uptime |
 
 ## Grouping rules
 
-**Console:** signature = `level + hash(normalized message)`, normalized by:
-- numbers → `<n>` (e.g. `user 42` → `user <n>`)
+**Console:** signature = `level + hash(normalized message)` โดย normalize:
+- เลข → `<n>` (e.g. `user 42` → `user <n>`)
 - UUID → `<uuid>`
 - ISO timestamp → `<ts>`
 - hex → `<hex>`
 
 **Network:** signature = `api + method + urlPattern + status`
-- path strips query string, `/42/` → `/<n>/`, `/<uuid>/`, `/<hash>/`
+- Path ตัด query string, `/42/` → `/<n>/`, `/<uuid>/`, `/<hash>/`
 
 → `GET /api/users/1`, `/api/users/2`, `/api/users/3` = **1 group count=3**
 
 ## Defaults
 
 - Port `3737`, bind `127.0.0.1` (localhost only)
-- Data dir = CWD (`logs.jsonl`, `summary.json` written to the directory where `clc start` was run)
-- Cap 100 groups per kind (drop lowest-count + oldest first)
-- Ring buffer (`/logs`) keeps the last 200 events
+- Data dir = CWD (logs.jsonl, summary.json เขียนที่ directory ที่รัน `clc start`)
+- Cap 100 groups ต่อ kind (drop ตัว count น้อย + เก่าก่อน)
+- Ring buffer (`/logs`) เก็บ 200 events ล่าสุด
 - Batch 200ms / 20 events (capture side); summary flush debounce 500ms
-- Request bodies are not stored — only method/url/status/headers/duration
+- Body ของ request ไม่เก็บ — เฉพาะ method/url/status/headers/duration
